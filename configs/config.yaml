@@ -1,0 +1,61 @@
+# ==============================================================================
+# IDPS Global Configuration
+# ==============================================================================
+
+env: "development"
+log_level: "INFO"
+tenant_id: "default"
+secret_key: "development-secret-key-change-in-production"
+
+tls_inspection_mode: "metadata" # metadata | intercept | hybrid
+enforcement_mode: "shadow"      # shadow | staged | enforce
+enforcement_fail_mode: "fail-open" # fail-open | fail-closed
+enforcement_dry_run: true
+
+multi_tenant_enabled: false
+tenant_isolation_mode: "logical"
+
+kafka:
+  bootstrap_servers: "localhost:9092"
+  group_id: "idps-cluster"
+  auto_offset_reset: "latest"
+
+postgres:
+  host: "localhost"
+  port: 5432
+  db: "idps"
+  user: "idps"
+  password: "change-me-in-production"
+
+clickhouse:
+  host: "localhost"
+  port: 8123
+  db: "idps_analytics"
+  user: "idps"
+  password: "change-me-in-production"
+
+redis:
+  url: "redis://localhost:6379/0"
+
+sandbox:
+  enabled: true
+  backend: "local"
+  timeout_seconds: 120
+  max_concurrent: 5
+
+deception:
+  enabled: true
+  honeypot_bind_address: "0.0.0.0"
+  honeypot_ports: "2222,8088"
+
+compliance:
+  frameworks: "pci-dss,soc2,hipaa,gdpr"
+  report_schedule: "0 0 * * 0"
+  retention_days: 365
+
+api:
+  host: "0.0.0.0"
+  port: 8080
+  workers: 4
+  rate_limit: "200/minute"
+  cors_origins: "http://localhost:3000,http://localhost:8080"

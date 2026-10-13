@@ -1,0 +1,31 @@
+# ==============================================================================
+# IDPS Behavioral Detection Rules
+# ==============================================================================
+
+rules:
+  - rule_id: "BHV-YAML-001"
+    name: "Lateral SMB PsExec Execution"
+    description: "PsExec service creation over SMB pipe"
+    severity: "high"
+    category: "lateral_movement"
+    version: "1.0"
+    mitre:
+      tactic: "Lateral Movement"
+      tactic_id: "TA0008"
+      technique: "Remote Services"
+      technique_id: "T1021"
+      sub_technique: "SMB/Windows Admin Shares"
+      sub_technique_id: "T1021.002"
+    conditions:
+      event_type: "host_process"
+      process.name: "psexesvc.exe"
+
+  - rule_id: "BHV-YAML-002"
+    name: "Suspicious Inbound SSH Port Sweep"
+    description: "Single host scanning multiple ports across private subnet"
+    severity: "medium"
+    category: "discovery"
+    version: "1.0"
+    conditions:
+      event_type: "network_flow"
+      network.dst_port: 22

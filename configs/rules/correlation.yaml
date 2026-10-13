@@ -1,0 +1,21 @@
+# ==============================================================================
+# IDPS Correlation Rules
+# ==============================================================================
+
+correlation_rules:
+  - id: "CORR-001"
+    name: "Phishing to C2 Beacon Progression"
+    window_minutes: 30
+    sequence:
+      - tactic: "TA0001" # Initial Access
+      - tactic: "TA0002" # Execution
+      - tactic: "TA0011" # C2
+    severity: "critical"
+    action: "host_isolate"
+
+  - id: "CORR-002"
+    name: "Honeypot Touch Followed by Internal Scan"
+    window_minutes: 60
+    trigger: "deception_taint"
+    severity: "critical"
+    action: "firewall_block"

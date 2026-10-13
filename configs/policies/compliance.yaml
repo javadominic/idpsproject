@@ -1,0 +1,22 @@
+# ==============================================================================
+# IDPS Compliance Framework Mappings
+# ==============================================================================
+
+frameworks:
+  pci_dss:
+    version: "4.0"
+    mandatory_controls:
+      - "10.6.1" # Audit logging integrity
+      - "11.4.1" # IDS/IPS inspection active
+      - "11.4.2" # Signature update timeliness
+  soc2:
+    trust_services:
+      - "CC7.1"  # Threat monitoring
+      - "CC7.2"  # Incident response
+  hipaa:
+    security_rule:
+      - "164.312(b)" # Audit controls
+      - "164.312(c)" # Integrity controls
+  gdpr:
+    articles:
+      - "Article 32" # Security of processing

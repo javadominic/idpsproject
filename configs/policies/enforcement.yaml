@@ -1,0 +1,28 @@
+# ==============================================================================
+# IDPS Enforcement Policies
+# ==============================================================================
+
+policies:
+  - id: "POL-001"
+    name: "C2 Traffic Termination Policy"
+    category: "command_and_control"
+    min_confidence: 0.80
+    min_risk_score: 75
+    action: "ips_drop"
+    staged_rollout: true
+
+  - id: "POL-002"
+    name: "Ransomware Containment Policy"
+    category: "impact"
+    min_confidence: 0.70
+    min_risk_score: 70
+    action: "host_isolate"
+    staged_rollout: false
+
+  - id: "POL-003"
+    name: "Brute Force Temporary Ban"
+    category: "credential_access"
+    min_confidence: 0.85
+    min_risk_score: 60
+    action: "firewall_ttl_block"
+    ttl_seconds: 3600

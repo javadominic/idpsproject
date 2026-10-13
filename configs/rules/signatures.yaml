@@ -1,0 +1,46 @@
+# ==============================================================================
+# IDPS Signature Detection Rules (Suricata / Snort Compatible)
+# ==============================================================================
+
+rules:
+  - rule_id: "SIG-YAML-001"
+    name: "Mimikatz Memory Dump Invocation"
+    description: "Detection of Mimikatz or sekurlsa memory dump commands"
+    severity: "critical"
+    category: "credential_access"
+    version: "1.0"
+    mitre:
+      tactic: "Credential Access"
+      tactic_id: "TA0006"
+      technique: "OS Credential Dumping"
+      technique_id: "T1003"
+      sub_technique: "LSASS Memory"
+      sub_technique_id: "T1003.001"
+    conditions:
+      event_type: "host_process"
+      process.command_line_regex: "(?i)(sekurlsa::logonpasswords|lsadump::sam|privilege::debug)"
+
+  - rule_id: "SIG-YAML-002"
+    name: "Suspicious Shadow Copies Deletion"
+    description: "Ransomware inhibitor technique destroying VSS shadow copies"
+    severity: "critical"
+    category: "impact"
+    version: "1.0"
+    mitre:
+      tactic: "Impact"
+      tactic_id: "TA0040"
+      technique: "Inhibit System Recovery"
+      technique_id: "T1490"
+    conditions:
+      event_type: "host_process"
+      process.command_line_regex: "(?i)(vssadmin.*delete.*shadows|wmic.*shadowcopy.*delete|wbadmin.*delete.*catalog)"
+
+  - rule_id: "SIG-YAML-003"
+    name: "SQL Injection Probe Pattern"
+    description: "Classic SQL injection syntax detected in query or payload"
+    severity: "high"
+    category: "initial_access"
+    version: "1.0"
+    conditions:
+      event_type: "http_request"
+      metadata.action_regex: "(?i)(union.*select|'\\s*or\\s*'1'='1|waitfor\\s+delay)"

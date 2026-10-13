@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: idps-api
+  namespace: security
+  labels:
+    app.kubernetes.io/name: idps-api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: idps-api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: idps-api
+    spec:
+      containers:
+        - name: idps-api
+          image: idps:latest
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: idps-config
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: 2000m
+              memory: 2Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: idps-api
+  namespace: security
+spec:
+  selector:
+    app.kubernetes.io/name: idps-api
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080

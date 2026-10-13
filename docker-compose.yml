@@ -1,0 +1,91 @@
+services:
+  # ─── Kafka & Zookeeper (Message Bus) ─────────────────────────────────────────
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    container_name: idps-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: idps-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+  # ─── Storage Layer ────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: idps-postgres
+    environment:
+      POSTGRES_USER: idps
+      POSTGRES_PASSWORD: change-me-in-production
+      POSTGRES_DB: idps
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: idps-redis
+    ports:
+      - "6379:6379"
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:23.8-alpine
+    container_name: idps-clickhouse
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+
+  # ─── IDPS Application Suite ───────────────────────────────────────────────────
+  idps-api:
+    build:
+      context: .
+      dockerfile: deploy/docker/Dockerfile
+    container_name: idps-api
+    command: ["uvicorn", "services.api.main:app", "--host", "0.0.0.0", "--port", "8080"]
+    ports:
+      - "8080:8080"
+    environment:
+      - IDPS_ENV=production
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - POSTGRES_HOST=postgres
+      - REDIS_URL=redis://redis:6379/0
+      - CLICKHOUSE_HOST=clickhouse
+    depends_on:
+      - kafka
+      - postgres
+      - redis
+
+  idps-deception:
+    build:
+      context: .
+      dockerfile: deploy/docker/Dockerfile
+    container_name: idps-deception
+    command: ["python", "-m", "services.deception.decoy_service"]
+    ports:
+      - "2222:2222" # SSH Honeypot
+      - "8088:8088" # HTTP Honeypot
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+    depends_on:
+      - kafka
+
+volumes:
+  postgres_data:
+  clickhouse_data:
