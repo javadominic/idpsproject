@@ -26,6 +26,7 @@ from services.api.webhooks import router as webhooks_router
 from services.api.routes.network import router as network_router
 from services.api.routes.waf import router as waf_router
 from services.api.routes.deception import router as deception_router
+from services.api.routes.scanner import router as scanner_router
 
 logger = get_logger("api.main")
 
@@ -100,6 +101,7 @@ def create_app() -> FastAPI:
     app.include_router(network_router, prefix=api_prefix)
     app.include_router(waf_router, prefix=api_prefix)
     app.include_router(deception_router, prefix=api_prefix)
+    app.include_router(scanner_router, prefix=api_prefix)
 
     return app
 

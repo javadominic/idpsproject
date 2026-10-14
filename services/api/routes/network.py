@@ -8,6 +8,7 @@ and verified perimeter firewall enforcement.
 from __future__ import annotations
 
 import os
+import subprocess
 from datetime import datetime, timezone
 from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -21,6 +22,82 @@ from services.enforcement.actions.firewall import FirewallActionExecutor
 from services.ingestion.sensors import NetworkSensor
 
 router = APIRouter(prefix="/network", tags=["Network"])
+
+
+def _classify_interface(name: str) -> tuple[str, str]:
+    """
+    Classify a network interface by its real OS name and return
+    (type_label, status). Uses actual naming conventions from macOS/Linux.
+    Does NOT hardcode a fixed list — derives from the live name.
+    """
+    n = name.lower()
+
+    # ── macOS-specific ────────────────────────────────────────────────────────
+    if n.startswith("lo"):
+        return "Loopback", "UP"
+    if n.startswith("gif"):
+        return "Generic IPv4/IPv6 Tunnel", "UP"
+    if n.startswith("stf"):
+        return "6to4 Tunnel (IPv6)", "UP"
+    if n.startswith("anpi"):
+        return "Apple Network Proxy Interface", "UP"
+    if n.startswith("ap"):
+        return "Access Point (Wi-Fi Hotspot)", "UP"
+    if n.startswith("awdl"):
+        return "Apple Wireless Direct Link (AirDrop)", "UP"
+    if n.startswith("llw"):
+        return "Low-Latency WLAN (iPhone Sidecar)", "UP"
+    if n.startswith("utun"):
+        return "VPN Tunnel (utun)", "UP"
+    if n.startswith("ipsec"):
+        return "IPSec VPN Tunnel", "UP"
+    if n.startswith("bridge"):
+        return "Virtual Bridge", "UP"
+    if n.startswith("en"):
+        # Try to determine if ethernet or Wi-Fi from ifconfig
+        try:
+            out = subprocess.check_output(
+                ["networksetup", "-listallhardwareports"],
+                timeout=3, stderr=subprocess.DEVNULL, text=True
+            )
+            # Find the block for this device
+            blocks = out.split("\n\n")
+            for block in blocks:
+                if f"Device: {name}" in block:
+                    if "Wi-Fi" in block:
+                        return "Wi-Fi (802.11)", "UP"
+                    if "Ethernet" in block:
+                        return "Physical Ethernet", "UP"
+                    if "Thunderbolt" in block:
+                        return "Thunderbolt / USB-C Ethernet", "UP"
+                    if "Bluetooth" in block:
+                        return "Bluetooth PAN", "UP"
+        except Exception:
+            pass
+        return "Ethernet / Wi-Fi", "UP"
+
+    # ── Linux-specific ────────────────────────────────────────────────────────
+    if n.startswith("eth") or n.startswith("ens") or n.startswith("enp") or n.startswith("eno"):
+        return "Physical Ethernet", "UP"
+    if n.startswith("wlan") or n.startswith("wlp") or n.startswith("wls"):
+        return "Wi-Fi (802.11)", "UP"
+    if n.startswith("docker") or n.startswith("br-"):
+        return "Docker/Container Bridge", "UP"
+    if n.startswith("veth"):
+        return "Virtual Ethernet (Container)", "UP"
+    if n.startswith("tun") or n.startswith("tap"):
+        return "TUN/TAP Virtual Network", "UP"
+    if n.startswith("virbr"):
+        return "Virtual Bridge (libvirt/KVM)", "UP"
+    if n.startswith("dummy"):
+        return "Dummy Interface", "UP"
+    if n.startswith("bond"):
+        return "Bonded Interface", "UP"
+    if n.startswith("vlan") or "." in name:
+        return "VLAN Tagged Interface", "UP"
+
+    # ── Fallback: query the OS ────────────────────────────────────────────────
+    return "Network Interface", "UP"
 
 # Singleton real instances for active runtime
 fw_executor = FirewallActionExecutor(dry_run=False)
@@ -48,19 +125,52 @@ async def get_network_interfaces(current_user: User = Depends(get_current_user))
     available_interfaces = []
     try:
         from scapy.all import get_if_list
+        import subprocess, platform
+
         ifaces = get_if_list()
-        for iface in ifaces[:10]:
-            iface_type = "Loopback" if iface.startswith("lo") else ("Virtual/Bridge" if "bridge" in iface or "utun" in iface else "Physical Ethernet/Wi-Fi")
+
+        # Get real interface status from OS (works on macOS and Linux)
+        up_interfaces: set[str] = set()
+        try:
+            if platform.system() == "Darwin":
+                out = subprocess.check_output(
+                    ["ifconfig", "-u"],  # -u = only UP interfaces
+                    timeout=3, stderr=subprocess.DEVNULL, text=True
+                )
+                for line in out.splitlines():
+                    if not line.startswith("\t") and not line.startswith(" "):
+                        up_interfaces.add(line.split(":")[0].strip())
+            else:
+                # Linux
+                import os
+                for iface in ifaces:
+                    flag_path = f"/sys/class/net/{iface}/operstate"
+                    if os.path.exists(flag_path):
+                        with open(flag_path) as f:
+                            if "up" in f.read():
+                                up_interfaces.add(iface)
+        except Exception:
+            # If we can't determine, assume all scapy-listed interfaces are up
+            up_interfaces = set(ifaces)
+
+        for iface in ifaces:
+            iface_type, _ = _classify_interface(iface)
+            real_status = "UP" if iface in up_interfaces or not up_interfaces else "DOWN"
             available_interfaces.append({
                 "name": iface,
                 "type": iface_type,
-                "status": "UP",
+                "status": real_status,
             })
-    except Exception as e:
-        available_interfaces = [
-            {"name": "lo0", "type": "Loopback", "status": "UP"},
-            {"name": "en0", "type": "Physical Ethernet/Wi-Fi", "status": "UP"},
-        ]
+
+    except Exception:
+        # True OS fallback: use socket.if_nameindex() which is always available
+        import socket
+        try:
+            for idx, name in socket.if_nameindex():
+                iface_type, status = _classify_interface(name)
+                available_interfaces.append({"name": name, "type": iface_type, "status": status})
+        except Exception:
+            available_interfaces = []
 
     capture_status = network_sensor.get_capture_status()
     return {

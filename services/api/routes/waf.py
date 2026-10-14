@@ -69,28 +69,34 @@ class WAFTogglePayload(BaseModel):
     enabled: bool
 
 
+import urllib.parse
+
+
 def inspect_payload(method: str, path: str, body: str, headers: dict[str, str]) -> tuple[str, str | None]:
     """Inspect request parameters against active WAF rules."""
-    full_target = f"{path} {body} {' '.join(headers.values())}"
+    raw_target = f"{path} {body} {' '.join(headers.values())}"
+    # Unquote URL-encoded and plus-encoded query strings and payloads
+    decoded_target = urllib.parse.unquote_plus(raw_target)
+    targets = [raw_target, decoded_target]
 
     if _waf_config["sqli_shield"]:
         for pat in SQLI_PATTERNS:
-            if pat.search(full_target):
+            if any(pat.search(t) for t in targets):
                 return "BLOCKED", "SQL Injection pattern matched"
 
     if _waf_config["xss_shield"]:
         for pat in XSS_PATTERNS:
-            if pat.search(full_target):
+            if any(pat.search(t) for t in targets):
                 return "BLOCKED", "Cross-Site Scripting (XSS) pattern matched"
 
     if _waf_config["path_traversal_guard"]:
         for pat in PATH_TRAVERSAL_PATTERNS:
-            if pat.search(full_target):
+            if any(pat.search(t) for t in targets):
                 return "BLOCKED", "Path Traversal attack matched"
 
     if _waf_config["command_injection_shield"]:
         for pat in CMD_INJECTION_PATTERNS:
-            if pat.search(full_target):
+            if any(pat.search(t) for t in targets):
                 return "BLOCKED", "OS Command Injection pattern matched"
 
     return "ALLOWED", None

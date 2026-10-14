@@ -30,10 +30,11 @@ async def list_reports(
 
 @router.post("/generate", response_model=ComplianceReport, status_code=status.HTTP_201_CREATED)
 async def generate_compliance_report(
-    framework: str = Query("pci-dss", pattern="^(pci-dss|soc2|hipaa|gdpr)$"),
+    framework: str = Query("pci-dss", pattern="^(pci-dss|pci_dss|soc2|hipaa|gdpr)$"),
     current_user: User = Depends(get_current_user),
 ):
     """Run real-time compliance evaluation and generate report."""
     require_permission(current_user, Permission.COMPLIANCE_GENERATE)
+    normalized_framework = framework.replace("_", "-")
     engine = ComplianceEngine(tenant_id=current_user.tenant_id)
-    return await engine.generate_report(framework=framework)
+    return await engine.generate_report(framework=normalized_framework)
